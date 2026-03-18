@@ -1,0 +1,7 @@
+*.env
+vector_db/
+logs/
+# Ignore all files in the knowledge_base directory except for .gitkeep
+!knowledge_base/.gitkeep
+knowledge_base/
+__pycache__/

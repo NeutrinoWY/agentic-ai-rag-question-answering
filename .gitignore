@@ -8,4 +8,4 @@ __pycache__/
 !knowledge-base/.gitkeep
 knowledge-base/
 !knowledge_base/.gitkeep
-knowledge_base/
+knowledge_base/*

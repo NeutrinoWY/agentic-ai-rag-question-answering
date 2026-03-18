@@ -11,13 +11,13 @@ __pycache__/
 
 # Ignore all files in the knowledge_base directory except for .gitkeep
 !knowledge-base/.gitkeep
-knowledge-base/
-!knowledge_base/.gitkeep
-knowledge_base/*
+knowledge-base/*
+
 
 model_cache/
 
 # Ignore finder files
 .DS_Store
 /.DS_Store
+
 UV_SETUP.md

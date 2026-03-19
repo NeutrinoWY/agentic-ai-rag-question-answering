@@ -1,36 +1,24 @@
 import os
 import glob
 from pathlib import Path
+from typing import List, Optional
+
 from langchain_community.document_loaders import TextLoader, DirectoryLoader
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import OpenAIEmbeddings
-from typing import List, Optional
-from dotenv import load_dotenv
-from src.prepare_vector_db.chunking import create_chunks, create_chunks_llm
 
+from src.prepare_vector_db.chunking import create_chunks, create_chunks_llm, create_chunks_emb
+
+from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+DEBUG = True
 
 KNOWLEDGE_BASE_DIR = str(Path(__file__).parent.parent.parent / "knowledge-base")
 VECTOR_DB_NAME = str(Path(__file__).parent.parent.parent / "vector-db")
 COLLECTION_NAME = "docs"
-
-
-hg_embeddings = HuggingFaceEmbeddings(
-    model_name="all-MiniLM-L6-v2"
-)
-
-openai_embeddings = OpenAIEmbeddings(
-    model="text-embedding-3-small", 
-    model_kwargs={
-        "temperature": 0.0, 
-        "max_tokens": 2048, 
-        "top_p": 1.0,
-        }
-)
 
 
 
@@ -77,43 +65,74 @@ def fetch_documents_simple() -> List[dict]:
 
 
 def generate_chunks(
+        chunking_method: str,
         documents: List,
         chunk_size: Optional[int] = 500,
-        chunk_overlap: Optional[int] = 150
+        chunk_overlap: Optional[int] = 150,
+        chunking_emb: Optional[str] = "text-embedding-3-small",
+        chunking_llm: Optional[str] = "gpt-4.1-nano",
+        workers: Optional[int] = 4
         ) -> List[dict]:
     """Split documents into smaller chunks using RecursiveCharacterTextSplitter or LLM.
     Each chunk will retain the metadata of its parent document, including the "type" field.
     Args:
+        chunking_method: The method to use for chunking (e.g., "recursive", "llm", "embedding").
         documents: List of documents to be split into chunks.
         chunk_size: The maximum size of each chunk.
         chunk_overlap: The number of characters to overlap between chunks.
+        chunking_emb: The embedding model to use for embedding-based chunking (default is "text-embedding-3-small").
+        chunking_llm: The LLM model to use for LLM-based chunking (default is "gpt-4.1-nano").
+        workers: The number of worker processes to use for parallel chunking (default is 4).
     returns: List of document chunks with metadata.
     """
-    if os.getenv("LLM_CHUNKING", "False").lower() == "true":
-        return create_chunks_llm(documents)
+    if chunking_method == "llm":
+        return create_chunks_llm(
+            documents, 
+            chunking_llm=chunking_llm,
+            workers=workers
+            )
+    elif chunking_method == "embedding":
+        return create_chunks_emb(
+            documents,
+            chunking_emb=chunking_emb,
+            workers=workers
+        )
     else:
-        return create_chunks(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+        return create_chunks(
+            documents, 
+            chunk_size=chunk_size, 
+            chunk_overlap=chunk_overlap
+        )
 
 
 def create_vector_db_via_langchain(
         chunks: list, 
-        embedding_model: Optional[str] = "huggingface"
+        embedding_method: Optional[str] = "huggingface"
         ) -> Chroma:
     """Create a Chroma vector database from the provided document chunks.
     Each chunk's content will be embedded using a embedding model and stored in the vector database along with its metadata.
     Args:
         chunks: List of document chunks to be embedded and stored in the vector database.
-        embedding_model: The embedding model to use for embedding the chunks.
+        embedding_method: The embedding method to use for embedding the chunks.
     returns: A Chroma vector database instance containing the embedded chunks.
     """
     # Create a Chroma vector database using the specified embedding model
-    if embedding_model == "huggingface":
-        embedding = hg_embeddings
-    elif embedding_model == "openai":
-        embedding = openai_embeddings
+    if embedding_method == "huggingface":
+        embedding = HuggingFaceEmbeddings(
+                        model_name="all-MiniLM-L6-v2")
+
+    elif embedding_method == "openai":
+        embedding = OpenAIEmbeddings(
+            model="text-embedding-3-small", 
+            model_kwargs={
+                "temperature": 0.0, 
+                "max_tokens": 2048, 
+                "top_p": 1.0,
+                }
+        )
     else:
-        raise ValueError("Unsupported embedding model")
-    
+        raise ValueError("Unsupported embedding method")
+        
     # delete existing collection if the vector db exist and the collection exists to avoid duplicates
     if os.path.exists(VECTOR_DB_NAME):
         vector_db = Chroma(
@@ -130,35 +149,65 @@ def create_vector_db_via_langchain(
         collection_name=COLLECTION_NAME,
         persist_directory=VECTOR_DB_NAME
     )
-    # The format of a chunk is {"text": ..., "metadata": {"type": ..., "source": ..., "headline": ...}}
-
+    # before ingesting, the content of a chunk is in the "text" key, and the metadata is in the "metadata" key
+    # the format of a chunk is {"text": ..., "metadata": {"type": ...,  "source": ..., "headline": ...}}
+    
+    # after ingesting, the content of a chunk is in the "page_content" key, and the metadata is in the "metadata" key
+    # The format of a chunk is {"page_content": ..., "metadata": {"type": ..., "source": ..., "headline": ...}}
     return vector_db
 
 
 
-def ingest_knowledge_base():
+def ingest_knowledge_base(
+        chunking_method: str = "llm",
+        chunk_size: Optional[int] = 500,
+        chunk_overlap: Optional[int] = 150,
+        chunking_emb: Optional[str] = "text-embedding-3-small",
+        chunking_llm: Optional[str] = "gpt-4.1-nano",
+        workers: Optional[int] = 4,
+        embedding_method: Optional[str] = "huggingface"
+) -> None:
+    """Ingest the knowledge base by fetching documents, generating chunks, and creating a vector database
+    Args:
+        chunking_method: The method to use for chunking (e.g., "recursive", "llm", "embedding").
+        chunk_size: The maximum size of each chunk (used for recursive chunking).
+        chunk_overlap: The number of characters to overlap between chunks (used for recursive chunking).
+        chunking_emb: The embedding model to use for embedding-based chunking (default is "text-embedding-3-small").
+        chunking_llm: The LLM model to use for LLM-based chunking (default is "gpt-4.1-nano").
+        workers: The number of worker processes to use for parallel chunking (default is 4).
+        embedding_method: The embedding method to use for creating the vector database (default is "huggingface").
+    returns: None
+    """
     documents = fetch_documents() 
     # print the first document's content and metadata to verify
-    if documents:
-        print(f"First document content: {documents[0].page_content[:500]}")  # print first 500 characters
+    if DEBUG:
+        documents = documents[:1]  # Limit to first 2 documents for LLM chunking to save time
+        print(f"First document content: {documents[0].page_content[:100]}")  # print first 500 characters
         print(f"First document metadata: {documents[0].metadata}")
     
-    llm_chunking = os.getenv("LLM_CHUNKING", "False")
-    if DEBUG or llm_chunking.lower() == "true":
-        print("Using LLM-based chunking...")
-        documents = documents[:1]  # Limit to first 2 documents for LLM chunking to save time
-    
-    if llm_chunking.lower() == "true":
-        # use LLM-based chunking for better quality chunks, especially for complex documents, but it is slower and more expensive. We limit the number of documents to 1 in debug mode to save time and cost.
-        chunks = create_chunks_llm(documents, chunking_llm="gpt-4.1-nano")
-    else:
-        chunks = create_chunks(documents)
+    chunks = generate_chunks(
+        chunking_method=chunking_method,
+        documents=documents,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
+        chunking_emb=chunking_emb,
+        chunking_llm=chunking_llm,
+        workers=workers
+    )
 
-    create_vector_db_via_langchain(chunks, embedding_model="huggingface")
+    create_vector_db_via_langchain(chunks, embedding_method=embedding_method)
 
 
 if __name__ == "__main__":
-    ingest_knowledge_base()
+    ingest_knowledge_base(
+        chunking_method="recursive",  # "recursive", "llm", or "embedding"
+        chunk_size=500,
+        chunk_overlap=150,
+        chunking_emb="text-embedding-3-small",
+        chunking_llm="gpt-4.1-nano",
+        workers=4,
+        embedding_method="huggingface"  # "huggingface" or "openai"
+    )
 
     # check database contents
     vector_db = Chroma(collection_name=COLLECTION_NAME, persist_directory=VECTOR_DB_NAME)

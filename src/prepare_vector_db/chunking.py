@@ -1,13 +1,17 @@
-import os
 from typing import List, Optional
 from openai import OpenAI
 from dotenv import load_dotenv
 from tqdm import tqdm
 from tenacity import retry, wait, stop_after_attempt, wait_exponential
 from multiprocessing import Pool
+from langchain_experimental.text_splitter import SemanticChunker
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from src.prepare_vector_db.pydantic_models import Chunks
-from src.prompts.prompts import chunking_prompt
+from langchain_openai import OpenAIEmbeddings
+
+from src.utils.pydantic_models import Chunks
+from src.utils.prompts import chunking_prompt
+
+
 
 load_dotenv(override=True)
 
@@ -25,8 +29,16 @@ def create_messages(document: dict) -> dict:
 
 
 
+
+
 # @retry(wait=wait)
-def chunk_document_llm(document: dict, chunking_llm: str = "gpt-4.1-nano"):
+def chunk_document_llm(document: dict, chunking_llm: str = "gpt-4.1-nano") -> List[dict]:
+    """Chunk a single document into smaller chunks using an LLM-based approach.
+    Args:
+        document: The document to be split into chunks.
+        chunking_llm: The LLM model to use for chunking the document.
+    returns: A list of chunks for the document, where each chunk is a dict containing a headline, the original text of the chunk, and metadata from the original document.
+    """
     messages = create_messages(document)
     # use pydantic model Chunks to validate the response, chunks is a list of dicts with the keys "headline", "text"
     # chunk the document using the LLM, with a response format of Chunks
@@ -46,8 +58,11 @@ def chunk_document_llm(document: dict, chunking_llm: str = "gpt-4.1-nano"):
     return [chunk.as_result(document) for chunk in doc_as_chunks]
 
 
-
-def create_chunks_llm(documents: List, chunking_llm: str = "gpt-4.1-nano"):
+def create_chunks_llm(
+        documents: List, 
+        chunking_llm: str = "gpt-4.1-nano",
+        workers: Optional[int] = 4
+        ) -> List[dict]:
     """Split documents into smaller chunks using an LLM-based approach.
     Each chunk is a dict containing a headline, the original text of the chunk, and metadata from the original document.
     Args:
@@ -58,9 +73,8 @@ def create_chunks_llm(documents: List, chunking_llm: str = "gpt-4.1-nano"):
     chunks = []
 
     if len(documents) > 10:
-        # We use imap_unordered to process documents in parallel and get results as they come in, 
+        # [may have API limits] We use imap_unordered to process documents in parallel and get results as they come in, 
         # which is more efficient than waiting for all to finish.
-        workers = int(os.getenv("WORKERS", 4)) # should be integer
         with Pool(processes=workers) as pool:
             for result in tqdm(pool.imap_unordered(chunk_document_llm, documents), total=len(documents)):
                 # result is a list of chunks for a single document
@@ -69,6 +83,70 @@ def create_chunks_llm(documents: List, chunking_llm: str = "gpt-4.1-nano"):
         for document in tqdm(documents, desc="Chunking documents with LLM"):
             chunks.extend(chunk_document_llm(document, chunking_llm=chunking_llm))
     return chunks
+
+
+
+
+
+def chunk_document_emb(
+        document: dict, 
+        chunking_emb: str = "text-embedding-3-small"
+        ) -> List[dict]:
+    """Split a single document into smaller chunks using an embedding-based approach with LangChain's SemanticChunker.
+    Each chunk is a dict containing the original text of the chunk and metadata from the original document.
+    Args:
+        document: The document to be split into chunks.
+        chunking_emb: The embedding model to use for chunking (default is "text-embedding-3-small").
+    returns: List of document chunks with metadata.
+    """
+    # Initialize the text splitter with the specified embedding model
+    embeddings = OpenAIEmbeddings(model=chunking_emb)
+    text_splitter = SemanticChunker(
+        embeddings,
+        breakpoint_threshold_type="percentile", # use percentile to determine breakpoints based on the distribution of embedding distances to structure the chunks more effectively
+        breakpoint_threshold_amount=95 # set the threshold to the 95th percentile to allow for more natural chunking while still keeping chunks reasonably sized
+    )
+    
+    chunks = text_splitter.split_text(document.page_content)
+    chunk_docs = []
+    for i, chunk in enumerate(chunks):
+        chunk_doc = {
+            "text": chunk,
+            "metadata": {
+                "type": document.metadata.get("type", "unknown"),
+                "source": document.metadata.get("source", ""),
+                "headline": f"{document.metadata.get('type', 'unknown')}_chunk_{i}",
+            }
+        }
+        chunk_docs.append(chunk_doc)
+    return chunk_docs
+
+
+def create_chunks_emb(
+        documents: List, 
+        chunking_emb: str = "text-embedding-3-small",
+        workers: Optional[int] = 4
+        ) -> List[dict]:
+    """Split documents into smaller chunks using an embedding-based approach with LangChain's SemanticChunker.
+    Each chunk is a dict containing the original text of the chunk and metadata from the original document.
+    Args:
+        documents: List of documents to be split into chunks.
+        chunking_emb: The embedding model to use for chunking (default is "text-embedding-3-small").
+    returns: List of document chunks with metadata.
+    """
+    all_chunks = []
+    if len(documents) > 10:
+        # [may have API limits and memory constraints]
+        with Pool(processes=workers) as pool:
+            for result in tqdm(pool.imap_unordered(chunk_document_emb, documents), total=len(documents)):
+                # result is a list of chunks for a single document
+                all_chunks.extend(result)
+    else:
+        for document in tqdm(documents, desc="Chunking documents with embedding-based approach"):
+            all_chunks.extend(chunk_document_emb(document, chunking_emb=chunking_emb))
+    return all_chunks
+
+
 
 
 

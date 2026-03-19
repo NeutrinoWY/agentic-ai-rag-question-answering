@@ -1,4 +1,6 @@
 
+from typing import List, Optional
+
 
 def chunking_prompt(document: dict) -> str:
     """Create a prompt for the LLM to split the document into chunks.
@@ -31,4 +33,20 @@ Respond with the chunks.
 
 
 
+def system_prompt(
+        context: str
+        ) -> str:
+    """Create a prompt for the LLM to answer the question using the retrieved chunks as context.
+    Args:
+        question: The user's question to be answered.
+        context: The context containing the retrieved chunks.
+    returns: A prompt string for the LLM.
+    """
+    prompt = f"""You are a knowledgable, polite, and concise assistant for answering questions about the compnay. 
+    If relevant information is available in the context, use it to answer the question.
+    If the context does not contain relevant information, say you don't know.
+    Here is the context:
+    {context}
+    """
+    return prompt
 

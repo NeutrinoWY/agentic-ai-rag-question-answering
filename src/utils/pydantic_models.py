@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List
 
 class Chunk(BaseModel):
     headline: str = Field(..., description="A headline summarizing the content of the chunk")
@@ -22,3 +22,8 @@ class Chunk(BaseModel):
 
 class Chunks(BaseModel):
     chunks: List[Chunk]
+
+
+class Answer(BaseModel):
+    answer: str = Field(description="The detailed answer to the question")
+    source: str = Field(description="The original text in context that support the answer")

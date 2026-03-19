@@ -21,3 +21,6 @@ model_cache/
 /.DS_Store
 
 UV_SETUP.md
+
+*.egg-info/
+*.egg

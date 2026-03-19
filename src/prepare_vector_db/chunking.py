@@ -1,47 +1,15 @@
 import os
-import glob
-from pathlib import Path
 from typing import List, Optional
 from openai import OpenAI
-from dotenv import load_dotenv, find_dotenv
+from dotenv import load_dotenv
 from tqdm import tqdm
 from tenacity import retry, wait, stop_after_attempt, wait_exponential
 from multiprocessing import Pool
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from pydantic_models import Chunks
-
+from src.prepare_vector_db.pydantic_models import Chunks
+from src.prompts.prompts import chunking_prompt
 
 load_dotenv(override=True)
-
-
-def create_prompt(document: dict) -> str:
-    """Create a prompt for the LLM to split the document into chunks.
-    Args:
-        document: The document to be split.
-    returns: A prompt string for the LLM.
-    """
-    how_many = max(5, len(document.page_content) // 500)  # heuristic for number of chunks
-    prompt = f"""
-You take a document and you split the document into overlapping chunks for a KnowledgeBase.
-
-The document is from the shared drive of a company called Insurellm.
-The document is of type: {document.metadata.get("type", "unknown")}.
-
-A chatbot will use these chunks to answer questions about the company.
-You should divide up the document as you see fit, being sure that the entire document is returned across the chunks - don't leave anything out.
-This document should probably be split into at least {how_many} chunks, but you can have more or less as appropriate, ensuring that there are individual chunks to answer specific questions.
-There should be overlap between the chunks as appropriate; typically about 25% overlap or about 50 words, so you have the same text in multiple chunks for best retrieval results.
-
-For each chunk, you should provide a headline, a summary, and the original text of the chunk.
-Together your chunks should represent the entire document with overlap.
-
-Here is the document:
-
-{document.page_content}
-
-Respond with the chunks.
-"""
-    return prompt
 
 
 def create_messages(document: dict) -> dict:
@@ -52,7 +20,7 @@ def create_messages(document: dict) -> dict:
     """
     return {
         "role": "user",
-        "content": create_prompt(document)
+        "content": chunking_prompt(document)
     }
 
 
@@ -105,14 +73,20 @@ def create_chunks_llm(documents: List, chunking_llm: str = "gpt-4.1-nano"):
 
 
 
-def create_chunks(documents: List):
+def create_chunks(
+        documents: List,
+        chunk_size: int = 500,
+        chunk_overlap: int = 150
+        ):
     """Split documents into smaller chunks using RecursiveCharacterTextSplitter.
     Each chunk will retain the metadata of its parent document, including the "type" field.
     Args:
         documents: List of documents to be split into chunks.
+        chunk_size: The maximum size of each chunk.
+        chunk_overlap: The number of characters to overlap between chunks.
     returns: List of document chunks with metadata.
     """
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=150)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     # chunks = text_splitter.split_documents(documents)
 
     # split each document into chunks and retain metadata

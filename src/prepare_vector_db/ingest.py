@@ -7,8 +7,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import OpenAIEmbeddings
 from typing import List, Optional
 from dotenv import load_dotenv
-import torch
-from chunking import create_chunks, create_chunks_llm
+from src.prepare_vector_db.chunking import create_chunks, create_chunks_llm
 
 
 load_dotenv(override=True)
@@ -19,9 +18,10 @@ KNOWLEDGE_BASE_DIR = str(Path(__file__).parent.parent.parent / "knowledge-base")
 VECTOR_DB_NAME = str(Path(__file__).parent.parent.parent / "vector-db")
 COLLECTION_NAME = "docs"
 
+
 hg_embeddings = HuggingFaceEmbeddings(
-    model_name="all-MiniLM-L6-v2", 
-    model_kwargs={"device": "cuda" if torch.cuda.is_available() else "cpu"})
+    model_name="all-MiniLM-L6-v2"
+)
 
 openai_embeddings = OpenAIEmbeddings(
     model="text-embedding-3-small", 
@@ -29,12 +29,12 @@ openai_embeddings = OpenAIEmbeddings(
         "temperature": 0.0, 
         "max_tokens": 2048, 
         "top_p": 1.0,
-        "device": "cuda" if torch.cuda.is_available() else "cpu"
-        })
+        }
+)
 
 
 
-def fetch_documents():
+def fetch_documents() -> List[dict]:
     """Fetch all documents from the knowledge base directory, categorizing them by type.
     Each document's metadata will include a "type" field corresponding to its parent folder name.
     returns: List of documents with metadata including their type.
@@ -60,7 +60,7 @@ def fetch_documents():
     return documents
 
 
-def fetch_documents_simple():
+def fetch_documents_simple() -> List[dict]:
     """Fetch all documents from the knowledge base directory, categorizing them by type."""
 
     documents = []
@@ -76,20 +76,29 @@ def fetch_documents_simple():
 
 
 
-def generate_chunks(documents: List):
+def generate_chunks(
+        documents: List,
+        chunk_size: Optional[int] = 500,
+        chunk_overlap: Optional[int] = 150
+        ) -> List[dict]:
     """Split documents into smaller chunks using RecursiveCharacterTextSplitter or LLM.
     Each chunk will retain the metadata of its parent document, including the "type" field.
     Args:
         documents: List of documents to be split into chunks.
+        chunk_size: The maximum size of each chunk.
+        chunk_overlap: The number of characters to overlap between chunks.
     returns: List of document chunks with metadata.
     """
     if os.getenv("LLM_CHUNKING", "False").lower() == "true":
         return create_chunks_llm(documents)
     else:
-        return create_chunks(documents)
+        return create_chunks(documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
 
 
-def create_vector_db_via_langchain(chunks: list, embedding_model: Optional[str] = "huggingface"):
+def create_vector_db_via_langchain(
+        chunks: list, 
+        embedding_model: Optional[str] = "huggingface"
+        ) -> Chroma:
     """Create a Chroma vector database from the provided document chunks.
     Each chunk's content will be embedded using a embedding model and stored in the vector database along with its metadata.
     Args:

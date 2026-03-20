@@ -42,7 +42,7 @@ The evaluation contains:
 - **Answer quality metrics**: which show how the accuracy, completeness and relevance of the generated answers, by comparing with the reference answers in the test set using a evaluation LLM. 
 
 Demonstration:
-![Evaluation](./pics/[best]eval_embed_chunk_openai_embed.png)
+![Evaluation](./pics/eval_ui_demo.png)
 
 
 ## Chatbot

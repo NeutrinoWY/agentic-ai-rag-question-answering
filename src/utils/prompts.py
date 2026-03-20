@@ -1,5 +1,5 @@
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 
 def chunking_prompt(document: dict) -> str:
@@ -50,3 +50,34 @@ def system_prompt(
     """
     return prompt
 
+
+
+def evaluation_prompt(
+        question: str,
+        reference_answer: str,
+        answer: str,
+) -> Tuple[str, str]:
+
+    eval_system_prompt = """
+    You are an expert evaluator assessing the quality of answers. 
+    Evaluate the generated answer by comparing it to the reference answer. 
+    Only give 5/5 scores for perfect answers.
+    """
+
+    eval_user_prompt = f"""Question:
+            {question}
+
+            Reference Answer:
+            {reference_answer}
+
+            Generated Answer:
+            {answer}
+
+            Please evaluate the generated answer on three dimensions:
+            1. Accuracy: How factually correct is it compared to the reference answer? Only give 5/5 scores for perfect answers.
+            2. Completeness: How thoroughly does it address all aspects of the question, covering all the information from the reference answer?
+            3. Relevance: How well does it directly answer the specific question asked, giving no additional information?
+
+            Provide detailed feedback and scores from 1 (very poor) to 5 (ideal) for each dimension. If the answer is wrong, then the accuracy score must be 1.
+            """
+    return  eval_system_prompt, eval_user_prompt

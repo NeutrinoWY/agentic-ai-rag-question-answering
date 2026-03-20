@@ -17,7 +17,7 @@ from src.utils.pydantic_models import Answer
 
 load_dotenv(override=True)
 
-DEBUG = True
+DEBUG = False
 
 KNOWLEDGE_BASE_DIR = str(Path(__file__).parent.parent.parent / "knowledge-base")
 VECTOR_DB_NAME = str(Path(__file__).parent.parent.parent / "vector-db")
@@ -70,21 +70,26 @@ def retrieve_chunks(
     return results
 
 
-def combine_question(question: str, history: list[dict] = []) -> str:
+def combine_question(question: str, history: list = []) -> str:
     """
     Combine all the user's messages into a single string.
     Args:
         question: the latest user question
         history: the conversation in the past, including user message and model response
     """
-    prior = "\n".join(m["content"] for m in history if m["role"] == "user")
-    return prior + "\n" + question
+    old = ""
+    if history:
+        old_content = [m["content"] for m in history if m["role"]=="user"]
+        if old_content and type(old_content[0]) is list:
+            old_content = [c[0]["text"] for c in old_content]
+        old = "\n".join(old_content)
+    return old + "\n" + question
 
 
 
 def llm_answer(
         question: str, 
-        history: List[dict] = [],
+        history: List = [],
         retrieved_chunks: list = [],
         llm_model: ChatOpenAI = LLM
         ) -> str:
@@ -110,10 +115,14 @@ def llm_answer(
     messages = [SystemMessage(content=system)]
 
     # (2) historical messages
-    messages.extend(convert_to_messages(history))
+    # messages.extend(convert_to_messages(history))
+    if history:
+        messages.extend(convert_to_messages(history))
 
     # (3) latest human message
     messages.append(HumanMessage(question))
+    print("============LLM input messages=============")
+    print(messages)
 
     response = llm_model.invoke(messages)
 
@@ -126,13 +135,18 @@ def llm_answer(
 
 def answer_question(
         question: str,
-        history: List[str],
+        history: List = [],
         top_k: int = 5,
+        llm_model: ChatOpenAI = LLM
         ) -> None:
     
     # only care about the recent conversations
-    length = len(history)
-    history = history[max(-length//2, -5):]
+    if history:
+        length = len(history)
+        history = history[max(-length//2, -5):]
+    
+    # history = convert_to_messages(history)
+    # print(type(history))
 
     # 1. load the vector database
     vector_db = Chroma(
@@ -167,12 +181,14 @@ def answer_question(
         question, 
         history=history,
         retrieved_chunks=retrieved_chunks,
-        llm_model=LLM
+        llm_model=llm_model
     )
 
     print(f"Question: {question}\n")
     print(f"Answer: {result.answer}\n")
     print(f"Source: {result.source}\n")
+
+    return result.answer, retrieved_chunks
 
 
 
@@ -184,6 +200,7 @@ if __name__ == "__main__":
     answer_question(        
         question=question,
         history=[],
-        top_k=5
+        top_k=5,
+        llm_model=LLM
     )
     

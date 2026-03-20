@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-DEBUG = True
+DEBUG = False
 
 KNOWLEDGE_BASE_DIR = str(Path(__file__).parent.parent.parent / "knowledge-base")
 VECTOR_DB_NAME = str(Path(__file__).parent.parent.parent / "vector-db")
@@ -85,18 +85,21 @@ def generate_chunks(
         workers: The number of worker processes to use for parallel chunking (default is 4).
     returns: List of document chunks with metadata.
     """
+    # use open ai llm to chunk 
     if chunking_method == "llm":
         return create_chunks_llm(
             documents, 
             chunking_llm=chunking_llm,
             workers=workers
             )
+    # use SemanticChunker with openai embedding model in langchain to chunk
     elif chunking_method == "embedding":
         return create_chunks_emb(
             documents,
             chunking_emb=chunking_emb,
             workers=workers
         )
+    # use recursivetextsplit in langchain to chunk
     else:
         return create_chunks(
             documents, 

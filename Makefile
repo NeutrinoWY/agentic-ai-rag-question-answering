@@ -1,4 +1,6 @@
-.PHONY: setup clean ingest
+.PHONY: setup clean ingest answer evaluate evaluation_app
+
+TEST_ROW=2
 
 setup:
 	uv sync
@@ -13,6 +15,13 @@ ingest:
 
 answer:
 	uv run python -m src.answering.answer
+
+
+evaluate:
+	uv run python -m src.evaluation.evaluate ${TEST_ROW}
+
+evaluation_app:
+	uv run python -m src.evaluation.evaluator_ui
 
 
 format:

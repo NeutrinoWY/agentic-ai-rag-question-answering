@@ -1,4 +1,3 @@
-
 from typing import List, Optional, Tuple
 
 
@@ -8,7 +7,9 @@ def chunking_prompt(document: dict) -> str:
         document: The document to be split.
     returns: A prompt string for the LLM.
     """
-    how_many = max(5, len(document.page_content) // 500)  # heuristic for number of chunks
+    how_many = max(
+        5, len(document.page_content) // 500
+    )  # heuristic for number of chunks
     prompt = f"""
 You take a document and you split the document into overlapping chunks for a KnowledgeBase.
 
@@ -32,10 +33,7 @@ Respond with the chunks.
     return prompt
 
 
-
-def system_prompt(
-        context: str
-        ) -> str:
+def system_prompt(context: str) -> str:
     """Create a prompt for the LLM to answer the question using the retrieved chunks as context.
     Args:
         question: The user's question to be answered.
@@ -52,11 +50,10 @@ def system_prompt(
     return prompt
 
 
-
 def evaluation_prompt(
-        question: str,
-        reference_answer: str,
-        answer: str,
+    question: str,
+    reference_answer: str,
+    answer: str,
 ) -> Tuple[str, str]:
 
     eval_system_prompt = """
@@ -81,4 +78,4 @@ def evaluation_prompt(
 
             Provide detailed feedback and scores from 1 (very poor) to 5 (ideal) for each dimension. If the answer is wrong, then the accuracy score must be 1.
             """
-    return  eval_system_prompt, eval_user_prompt
+    return eval_system_prompt, eval_user_prompt

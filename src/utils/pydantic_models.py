@@ -1,9 +1,13 @@
 from pydantic import BaseModel, Field
 from typing import List
 
+
 class Chunk(BaseModel):
     """A knowledge base chunk from documents in the knowledge base."""
-    headline: str = Field(..., description="A headline summarizing the content of the chunk")
+
+    headline: str = Field(
+        ..., description="A headline summarizing the content of the chunk"
+    )
     text: str = Field(..., description="The original text of the chunk")
 
     def as_result(self, document: dict) -> dict:
@@ -18,25 +22,32 @@ class Chunk(BaseModel):
                 "type": document.metadata.get("type", "unknown"),
                 "source": document.metadata.get("source", ""),
                 "headline": self.headline,
-            }
+            },
         }
+
 
 class Chunks(BaseModel):
     """List of knowledge base chunks"""
+
     chunks: List[Chunk]
 
 
 class Answer(BaseModel):
     """Model response for a user question."""
-    answer: str = Field(description="The detailed answer to the question")
-    source: str = Field(description="The original text in context that support the answer")
 
+    answer: str = Field(description="The detailed answer to the question")
+    source: str = Field(
+        description="The original text in context that support the answer"
+    )
 
 
 class RetrievalEval(BaseModel):
     """Evaluation metrics for retrieval performance."""
+
     mrr: float = Field(description="Mean Reciprocal Rank - average across all keywords")
-    ndcg: float = Field(description="Normalized Discounted Cumulative Gain (binary relevance)")
+    ndcg: float = Field(
+        description="Normalized Discounted Cumulative Gain (binary relevance)"
+    )
     keywords_found: int = Field(description="Number of keywords found in top-k results")
     total_keywords: int = Field(description="Total number of keywords to find")
     keyword_coverage: float = Field(description="Percentage of keywords found")

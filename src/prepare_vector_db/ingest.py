@@ -8,7 +8,11 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import OpenAIEmbeddings
 
-from src.prepare_vector_db.chunking import create_chunks, create_chunks_llm, create_chunks_emb
+from src.prepare_vector_db.chunking import (
+    create_chunks,
+    create_chunks_llm,
+    create_chunks_emb,
+)
 
 from dotenv import load_dotenv
 
@@ -19,7 +23,6 @@ DEBUG = False
 KNOWLEDGE_BASE_DIR = str(Path(__file__).parent.parent.parent / "knowledge-base")
 VECTOR_DB_NAME = str(Path(__file__).parent.parent.parent / "vector-db")
 COLLECTION_NAME = "docs"
-
 
 
 def fetch_documents() -> List[dict]:
@@ -33,11 +36,11 @@ def fetch_documents() -> List[dict]:
         if os.path.isdir(folder):
             doc_type = os.path.basename(folder)
             loader = DirectoryLoader(
-                folder, 
-                glob="**/*.md", 
-                show_progress=True, 
-                loader_cls=TextLoader,  
-                loader_kwargs={"encoding": "utf-8"}
+                folder,
+                glob="**/*.md",
+                show_progress=True,
+                loader_cls=TextLoader,
+                loader_kwargs={"encoding": "utf-8"},
             )
             docs = loader.load()  # Load documents from the folder
             for doc in docs:
@@ -57,22 +60,25 @@ def fetch_documents_simple() -> List[dict]:
         for file in folder.rglob("*.md"):
             with open(file, "r", encoding="utf-8") as f:
                 # keep the same format as the documents loaded by DirectoryLoader
-                documents.append({"metadata": {"type": doc_type, "source": file.as_posix()}, 
-                                  "page_content": f.read()})
+                documents.append(
+                    {
+                        "metadata": {"type": doc_type, "source": file.as_posix()},
+                        "page_content": f.read(),
+                    }
+                )
     print(f"Loaded {len(documents)} documents")
     return documents
 
 
-
 def generate_chunks(
-        chunking_method: str,
-        documents: List,
-        chunk_size: Optional[int] = 500,
-        chunk_overlap: Optional[int] = 150,
-        chunking_emb: Optional[str] = "text-embedding-3-small",
-        chunking_llm: Optional[str] = "gpt-4.1-nano",
-        workers: Optional[int] = 4
-        ) -> List[dict]:
+    chunking_method: str,
+    documents: List,
+    chunk_size: Optional[int] = 500,
+    chunk_overlap: Optional[int] = 150,
+    chunking_emb: Optional[str] = "text-embedding-3-small",
+    chunking_llm: Optional[str] = "gpt-4.1-nano",
+    workers: Optional[int] = 4,
+) -> List[dict]:
     """Split documents into smaller chunks using RecursiveCharacterTextSplitter or LLM.
     Each chunk will retain the metadata of its parent document, including the "type" field.
     Args:
@@ -85,33 +91,22 @@ def generate_chunks(
         workers: The number of worker processes to use for parallel chunking (default is 4).
     returns: List of document chunks with metadata.
     """
-    # use open ai llm to chunk 
+    # use open ai llm to chunk
     if chunking_method == "llm":
-        return create_chunks_llm(
-            documents, 
-            chunking_llm=chunking_llm,
-            workers=workers
-            )
+        return create_chunks_llm(documents, chunking_llm=chunking_llm, workers=workers)
     # use SemanticChunker with openai embedding model in langchain to chunk
     elif chunking_method == "embedding":
-        return create_chunks_emb(
-            documents,
-            chunking_emb=chunking_emb,
-            workers=workers
-        )
+        return create_chunks_emb(documents, chunking_emb=chunking_emb, workers=workers)
     # use recursivetextsplit in langchain to chunk
     else:
         return create_chunks(
-            documents, 
-            chunk_size=chunk_size, 
-            chunk_overlap=chunk_overlap
+            documents, chunk_size=chunk_size, chunk_overlap=chunk_overlap
         )
 
 
 def create_vector_db_via_langchain(
-        chunks: list, 
-        embedding_method: Optional[str] = "huggingface"
-        ) -> Chroma:
+    chunks: list, embedding_method: Optional[str] = "huggingface"
+) -> Chroma:
     """Create a Chroma vector database from the provided document chunks.
     Each chunk's content will be embedded using a embedding model and stored in the vector database along with its metadata.
     Args:
@@ -121,28 +116,27 @@ def create_vector_db_via_langchain(
     """
     # Create a Chroma vector database using the specified embedding model
     if embedding_method == "huggingface":
-        embedding = HuggingFaceEmbeddings(
-                        model_name="all-MiniLM-L6-v2")
+        embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
     elif embedding_method == "openai":
         embedding = OpenAIEmbeddings(
-            model="text-embedding-3-small", 
+            model="text-embedding-3-small",
             model_kwargs={
-                "temperature": 0.0, 
-                "max_tokens": 2048, 
+                "temperature": 0.0,
+                "max_tokens": 2048,
                 "top_p": 1.0,
-                }
+            },
         )
     else:
         raise ValueError("Unsupported embedding method")
-        
+
     # delete existing collection if the vector db exist and the collection exists to avoid duplicates
     if os.path.exists(VECTOR_DB_NAME):
         vector_db = Chroma(
-            collection_name=COLLECTION_NAME, 
+            collection_name=COLLECTION_NAME,
             persist_directory=VECTOR_DB_NAME,
-            embedding_function=embedding
-            )
+            embedding_function=embedding,
+        )
         vector_db.delete_collection()
 
     vector_db = Chroma.from_texts(
@@ -150,25 +144,24 @@ def create_vector_db_via_langchain(
         texts=[chunk["text"] for chunk in chunks],
         metadatas=[chunk["metadata"] for chunk in chunks],
         collection_name=COLLECTION_NAME,
-        persist_directory=VECTOR_DB_NAME
+        persist_directory=VECTOR_DB_NAME,
     )
     # before ingesting, the content of a chunk is in the "text" key, and the metadata is in the "metadata" key
     # the format of a chunk is {"text": ..., "metadata": {"type": ...,  "source": ..., "headline": ...}}
-    
+
     # after ingesting, the content of a chunk is in the "page_content" key, and the metadata is in the "metadata" key
     # The format of a chunk is {"page_content": ..., "metadata": {"type": ..., "source": ..., "headline": ...}}
     return vector_db
 
 
-
 def ingest_knowledge_base(
-        chunking_method: str = "llm",
-        chunk_size: Optional[int] = 500,
-        chunk_overlap: Optional[int] = 150,
-        chunking_emb: Optional[str] = "text-embedding-3-small",
-        chunking_llm: Optional[str] = "gpt-4.1-nano",
-        workers: Optional[int] = 4,
-        embedding_method: Optional[str] = "huggingface"
+    chunking_method: str = "llm",
+    chunk_size: Optional[int] = 500,
+    chunk_overlap: Optional[int] = 150,
+    chunking_emb: Optional[str] = "text-embedding-3-small",
+    chunking_llm: Optional[str] = "gpt-4.1-nano",
+    workers: Optional[int] = 4,
+    embedding_method: Optional[str] = "huggingface",
 ) -> None:
     """Ingest the knowledge base by fetching documents, generating chunks, and creating a vector database
     Args:
@@ -181,13 +174,17 @@ def ingest_knowledge_base(
         embedding_method: The embedding method to use for creating the vector database (default is "huggingface").
     returns: None
     """
-    documents = fetch_documents() 
+    documents = fetch_documents()
     # print the first document's content and metadata to verify
     if DEBUG:
-        documents = documents[:1]  # Limit to first 2 documents for LLM chunking to save time
-        print(f"First document content: {documents[0].page_content[:100]}")  # print first 500 characters
+        documents = documents[
+            :1
+        ]  # Limit to first 2 documents for LLM chunking to save time
+        print(
+            f"First document content: {documents[0].page_content[:100]}"
+        )  # print first 500 characters
         print(f"First document metadata: {documents[0].metadata}")
-    
+
     chunks = generate_chunks(
         chunking_method=chunking_method,
         documents=documents,
@@ -195,7 +192,7 @@ def ingest_knowledge_base(
         chunk_overlap=chunk_overlap,
         chunking_emb=chunking_emb,
         chunking_llm=chunking_llm,
-        workers=workers
+        workers=workers,
     )
 
     create_vector_db_via_langchain(chunks, embedding_method=embedding_method)
@@ -209,12 +206,18 @@ if __name__ == "__main__":
         chunking_emb="text-embedding-3-small",
         chunking_llm="gpt-4.1-nano",
         workers=4,
-        embedding_method="huggingface"  # "huggingface" or "openai"
+        embedding_method="huggingface",  # "huggingface" or "openai"
     )
 
     # check database contents
-    vector_db = Chroma(collection_name=COLLECTION_NAME, persist_directory=VECTOR_DB_NAME)
-    print(f"Number of documents in the vector database: {vector_db._collection.count()}")
-    sample_embedding = vector_db._collection.get(limit=1, include=["embeddings", "metadatas"])
+    vector_db = Chroma(
+        collection_name=COLLECTION_NAME, persist_directory=VECTOR_DB_NAME
+    )
+    print(
+        f"Number of documents in the vector database: {vector_db._collection.count()}"
+    )
+    sample_embedding = vector_db._collection.get(
+        limit=1, include=["embeddings", "metadatas"]
+    )
     if sample_embedding:
         print(f"Sample embedding: {sample_embedding}")

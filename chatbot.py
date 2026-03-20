@@ -22,16 +22,12 @@ def chat(history: list) -> Tuple[list, str]:
         history: all messages including the latest answer
         context: the formated context from the retrieved chunks. 
     """
-    print("===============all messages on chatbot==============")
-    print(history)
+
     lastest_message = history[-1]["content"]  # [{"text": ..., "type":...}]
-    latest_question = lastest_message[0]["text"]
-    print("==========latest message============")
-    print(lastest_message)
-    prior = history[:-1]
-    print("===============history====================")
-    print(prior)
+    latest_question = lastest_message[0]["text"]  # get the question string
+    prior = history[:-1] # list
     answer, context = answer_question(question=latest_question, history=prior)
+    # add the latest answer to update the full conversation history
     history.append({"role": "assistant", "content": answer})
     return history, format_context(context)
 

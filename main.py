@@ -7,15 +7,15 @@ load_dotenv(override=True)
 
 
 def format_context(context: list) -> str:
-    result = "<h2 style='color: #ff7800;'>Relevant Context</h2>\n\n"
+    result = "<h2 style='color: #ff7800;'>Relevant Context</h2>\n"
     for doc in context:
-        result += f"<span style='color: #ff7800;'>Source: {doc.metadata['type']}</span>\n\n"
-        result += doc.page_content + "\n\n"
+        result += f"<span style='color: #ff7800;'>Source: {doc.metadata['type']}</span>\n"
+        result += doc.page_content + "\n"
     return result
 
 
 def chat(history: list) -> Tuple[list, str]:
-    """Answer question based on contest.
+    """Answer question based on context.
     Args:
         history (list): all the messages from the chat including the latest question. 
     Return:

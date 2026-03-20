@@ -46,7 +46,7 @@ def main():
             with gr.Column(scale=1):
                 chatbot = gr.Chatbot(
                     label="💬 Conversation", 
-                    height=400, 
+                    height=640, 
                 )
                 message = gr.Textbox(
                     label="Your Question",
@@ -59,7 +59,7 @@ def main():
                     label="📚 Retrieved Context",
                     value="*Retrieved context will appear here*",
                     container=True,
-                    height=400,
+                    height=640,
                 )
 
         message.submit(

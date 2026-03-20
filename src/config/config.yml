@@ -4,7 +4,7 @@ project:
   description: A Retrieval-Augmented Generation (RAG) question-answering system using LangChain, ChromaDB, and HuggingFace/OpenAI embeddings.
 
 
-debug: True
+debug: False
 
 # the folder name of the knowledge documents
 knowledge-base: knowledge-base

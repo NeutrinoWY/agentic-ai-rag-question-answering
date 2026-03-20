@@ -13,38 +13,43 @@ from dotenv import load_dotenv
 
 from src.utils.prompts import system_prompt
 from src.utils.pydantic_models import Answer
+from src.utils.utils import CONFIG
 
 load_dotenv(override=True)
 
-DEBUG = False
 
-KNOWLEDGE_BASE_DIR = str(Path(__file__).parent.parent.parent / "knowledge-base")
-VECTOR_DB_NAME = str(Path(__file__).parent.parent.parent / "vector-db")
-COLLECTION_NAME = "docs"
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+KNOWLEDGE_BASE_DIR = str(PROJECT_ROOT / CONFIG["knowledge-base"])    
+VECTOR_DB_NAME = str(PROJECT_ROOT / CONFIG["vectorDB"]["name"])        
+COLLECTION_NAME = CONFIG["vectorDB"]["collection_name"]
 
-EMBEDDING_METHOD = "huggingface"  # or "openai"
-if EMBEDDING_METHOD == "huggingface":
-    EMBEDDING = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-elif EMBEDDING_METHOD == "openai":
-    EMBEDDING = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        model_kwargs={
-            "temperature": 0.0,
-            "max_tokens": 2048,
-            "top_p": 1.0,
-        },
+VECTOR_DB = Chroma(
+        collection_name=COLLECTION_NAME, persist_directory=VECTOR_DB_NAME
     )
 
-QUESTION_ANSERING_LLM = "gpt-4.1-mini"
+
+EMBEDDING_METHOD = CONFIG["vectorDB"]["embedding_method"]  # or "openai"
+if EMBEDDING_METHOD == "huggingface":
+    EMBEDDING = HuggingFaceEmbeddings(model_name=CONFIG["vectorDB"]["hf_model"])
+elif EMBEDDING_METHOD == "openai":
+    print("use openai embedding model")
+    EMBEDDING = OpenAIEmbeddings(
+        model=CONFIG["vectorDB"]["openai_model"]
+    )
+
 LLM = ChatOpenAI(
-    model=QUESTION_ANSERING_LLM, temperature=0.0, max_tokens=2048, top_p=1.0
+    model=CONFIG["answer_generation"]["model"], 
+    temperature=CONFIG["answer_generation"]["temperature"], 
+    max_tokens=CONFIG["answer_generation"]["max_tokens"], 
+    top_p=CONFIG["answer_generation"]["top_p"]
 ).with_structured_output(Answer)
+
 
 
 def retrieve_chunks(
     question: str,
-    vector_db: Chroma,
     top_k: int = 5,
+    vector_db: Chroma = VECTOR_DB,
     embedding: OpenAIEmbeddings | HuggingFaceEmbeddings = EMBEDDING,
 ) -> list:
     """Retrieve relevant chunks from the vector database based on the user's question.
@@ -56,7 +61,6 @@ def retrieve_chunks(
     returns: List of retrieved chunks relevant to the question.
     """
     question_embedding = embedding.embed_query(question)
-
     # query the vector database for relevant chunks
     results = vector_db.similarity_search_by_vector(question_embedding, k=top_k)
 
@@ -113,8 +117,6 @@ def llm_answer(
 
     # (3) latest human message
     messages.append(HumanMessage(question))
-    print("============LLM input messages=============")
-    print(messages)
 
     response = llm_model.invoke(messages)
 
@@ -126,7 +128,11 @@ def llm_answer(
 
 
 def answer_question(
-    question: str, history: List = [], top_k: int = 5, llm_model: ChatOpenAI = LLM
+    question: str, 
+    history: List = [], 
+    top_k: int = 5, 
+    embedding: HuggingFaceEmbeddings | OpenAIEmbeddings = EMBEDDING,
+    llm_model: ChatOpenAI = LLM
 ) -> None:
 
     # only care about the recent conversations
@@ -134,25 +140,15 @@ def answer_question(
         length = len(history)
         history = history[max(-length // 2, -5) :]
 
-    # history = convert_to_messages(history)
-    # print(type(history))
-
-    # 1. load the vector database
-    vector_db = Chroma(
-        collection_name=COLLECTION_NAME,
-        persist_directory=VECTOR_DB_NAME,
-        embedding_function=EMBEDDING,
-    )
-
-    # 2. combine latest question with history
+    # combine latest question with history
     c_question = combine_question(question=question, history=history)
 
-    # 3. Retrieve relevant chunks from the vector database based on all the historical conversation and latest question
+    # Retrieve relevant chunks from the vector database based on all the historical conversation and latest question
     retrieved_chunks = retrieve_chunks(
-        c_question, vector_db, top_k=top_k, embedding=EMBEDDING
+        c_question, vector_db=VECTOR_DB, top_k=top_k, embedding=embedding
     )
 
-    if DEBUG:
+    if CONFIG["debug"]:
         print(f"Retrieved {len(retrieved_chunks)} chunks from the vector database:")
         for i, chunk in enumerate(retrieved_chunks):
             print(chunk)

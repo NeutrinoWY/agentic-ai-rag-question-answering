@@ -183,7 +183,7 @@ def main():
         # RETRIEVAL SECTION
         gr.Markdown("## 🔍 Retrieval Evaluation")
 
-        retrieval_button = gr.Button("Run Evaluation", variant="primary", size="lg")
+        retrieval_button = gr.Button("Run Retrieval Evaluation", variant="primary", size="lg")
 
         with gr.Row():
             with gr.Column(scale=1):
@@ -198,12 +198,13 @@ def main():
                     title="Average MRR by Category",
                     y_lim=[0, 1],
                     height=400,
+                    color="blue"
                 )
 
         # ANSWERING SECTION
         gr.Markdown("## 💬 Answer Evaluation")
 
-        answer_button = gr.Button("Run Evaluation", variant="primary", size="lg")
+        answer_button = gr.Button("Run Answer Evaluation", variant="primary", size="lg")
 
         with gr.Row():
             with gr.Column(scale=1):
@@ -218,6 +219,7 @@ def main():
                     title="Average Accuracy by Category",
                     y_lim=[1, 5],
                     height=400,
+                    color="blue"
                 )
 
         # Wire up the evaluations

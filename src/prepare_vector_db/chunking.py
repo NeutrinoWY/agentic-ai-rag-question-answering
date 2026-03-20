@@ -41,7 +41,7 @@ def chunk_document_llm(
         messages=[messages],
         response_format=Chunks,
         temperature=0,  # lower temperature for more deterministic output
-        max_tokens=3000,  # adjust as needed based on expected chunk size and number of chunks
+        # max_tokens=3000,  # Not to add in case long document
     )
     reply = response.choices[0].message.content
 

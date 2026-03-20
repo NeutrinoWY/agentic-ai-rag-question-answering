@@ -13,76 +13,20 @@ from src.evaluation.test import TestQuestion, load_tests
 from src.answering.answer import answer_question, retrieve_chunks
 from src.utils.pydantic_models import Answer, RetrievalEval, AnswerEval
 from src.utils.prompts import evaluation_prompt
+from src.utils.utils import CONFIG
 
 load_dotenv(override=True)
 
-DEBUG = True
-
-KNOWLEDGE_BASE_DIR = str(Path(__file__).parent.parent.parent / "knowledge-base")
-VECTOR_DB_NAME = str(Path(__file__).parent.parent.parent / "vector-db")
-COLLECTION_NAME = "docs"
-
-# Embedding model for VectorDB
-EMBEDDING_METHOD = "huggingface"  # or "openai"
-if EMBEDDING_METHOD == "huggingface":
-    EMBEDDING = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-elif EMBEDDING_METHOD == "openai":
-    EMBEDDING = OpenAIEmbeddings(
-        model="text-embedding-3-small",
-        model_kwargs={
-            "temperature": 0.0,
-            "max_tokens": 2048,
-            "top_p": 1.0,
-        },
-    )
-
-VECTOR_DB = Chroma(
-    collection_name=COLLECTION_NAME,
-    persist_directory=VECTOR_DB_NAME,
-    embedding_function=EMBEDDING,
-)
-
-# Answering LLM
-QUESTION_ANSERING_LLM = "gpt-4.1-mini"
-LLM = ChatOpenAI(
-    model=QUESTION_ANSERING_LLM, temperature=0.0, max_tokens=2048, top_p=1.0
-).with_structured_output(Answer)
 
 # Evaluation LLM
 EVALUATION_LLM = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
+    model=CONFIG["evaluation"]["model"],
     temperature=0,
     max_tokens=None,
     timeout=None,
     max_retries=2,
 ).with_structured_output(AnswerEval)
 
-
-# class RetrievalEval(BaseModel):
-#     """Evaluation metrics for retrieval performance."""
-
-#     mrr: float = Field(description="Mean Reciprocal Rank - average across all keywords")
-#     ndcg: float = Field(description="Normalized Discounted Cumulative Gain (binary relevance)")
-#     keywords_found: int = Field(description="Number of keywords found in top-k results")
-#     total_keywords: int = Field(description="Total number of keywords to find")
-#     keyword_coverage: float = Field(description="Percentage of keywords found")
-
-
-# class AnswerEval(BaseModel):
-#     """LLM-as-a-judge evaluation of answer quality."""
-
-#     feedback: str = Field(
-#         description="Concise feedback on the answer quality, comparing it to the reference answer and evaluating based on the retrieved context"
-#     )
-#     accuracy: float = Field(
-#         description="How factually correct is the answer compared to the reference answer? 1 (wrong. any wrong answer must score 1) to 5 (ideal - perfectly accurate). An acceptable answer would score 3."
-#     )
-#     completeness: float = Field(
-#         description="How complete is the answer in addressing all aspects of the question? 1 (very poor - missing key information) to 5 (ideal - all the information from the reference answer is provided completely). Only answer 5 if ALL information from the reference answer is included."
-#     )
-#     relevance: float = Field(
-#         description="How relevant is the answer to the specific question asked? 1 (very poor - off-topic) to 5 (ideal - directly addresses question and gives no additional information). Only answer 5 if the answer is completely relevant to the question and gives no additional information."
-#     )
 
 
 def calculate_mrr(keyword: str, retrieved_chunks: list) -> float:
@@ -135,7 +79,7 @@ def evaluate_retrieval(test: TestQuestion, top_k: int = 5) -> RetrievalEval:
     """
     # Retrieve documents using shared answer module
     retrieved_docs = retrieve_chunks(
-        test.question, vector_db=VECTOR_DB, top_k=top_k, embedding=EMBEDDING
+        test.question, top_k=top_k,  # vector_db=VECTOR_DB, embedding=EMBEDDING
     )
 
     # Calculate MRR (average across all keywords)
@@ -177,7 +121,7 @@ def evaluate_answer(test: TestQuestion, top_k: int = 5):
     """
     # Get RAG response using shared answer module
     generated_answer, _ = answer_question(
-        test.question, history=[], top_k=top_k, llm_model=LLM
+        test.question, history=[], top_k=top_k,  # llm_model=LLM
     )
 
     sys_prompt, user_prompt = evaluation_prompt(
@@ -272,7 +216,7 @@ def run_cli_evaluation(test_number: int = 1, top_k=5):
 def main():
     """CLI to evaluate a specific test by row number."""
     if len(sys.argv) != 2:
-        print("Usage: uv run eval.py <test_row_number>")
+        print("Usage: uv run evaluate.py <test_row_number>")
         sys.exit(1)
 
     try:

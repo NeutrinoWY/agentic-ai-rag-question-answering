@@ -1,5 +1,6 @@
 import os
 import glob
+import yaml
 from pathlib import Path
 from typing import List, Optional
 
@@ -13,16 +14,17 @@ from src.prepare_vector_db.chunking import (
     create_chunks_llm,
     create_chunks_emb,
 )
+from src.utils.utils import CONFIG
 
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-DEBUG = False
 
-KNOWLEDGE_BASE_DIR = str(Path(__file__).parent.parent.parent / "knowledge-base")
-VECTOR_DB_NAME = str(Path(__file__).parent.parent.parent / "vector-db")
-COLLECTION_NAME = "docs"
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+KNOWLEDGE_BASE_DIR = str(PROJECT_ROOT / CONFIG["knowledge-base"])    
+VECTOR_DB_NAME = str(PROJECT_ROOT / CONFIG["vectorDB"]["name"])        
+COLLECTION_NAME = CONFIG["vectorDB"]["collection_name"]
 
 
 def fetch_documents() -> List[dict]:
@@ -104,7 +106,7 @@ def generate_chunks(
         )
 
 
-def create_vector_db_via_langchain(
+def create_vector_db(
     chunks: list, embedding_method: Optional[str] = "huggingface"
 ) -> Chroma:
     """Create a Chroma vector database from the provided document chunks.
@@ -116,16 +118,11 @@ def create_vector_db_via_langchain(
     """
     # Create a Chroma vector database using the specified embedding model
     if embedding_method == "huggingface":
-        embedding = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+        embedding = HuggingFaceEmbeddings(model_name=CONFIG["vectorDB"]["hf_model"])
 
     elif embedding_method == "openai":
         embedding = OpenAIEmbeddings(
-            model="text-embedding-3-small",
-            model_kwargs={
-                "temperature": 0.0,
-                "max_tokens": 2048,
-                "top_p": 1.0,
-            },
+            model=CONFIG["vectorDB"]["openai_model"]
         )
     else:
         raise ValueError("Unsupported embedding method")
@@ -176,12 +173,12 @@ def ingest_knowledge_base(
     """
     documents = fetch_documents()
     # print the first document's content and metadata to verify
-    if DEBUG:
+    if CONFIG["debug"]:
         documents = documents[
             :1
         ]  # Limit to first 2 documents for LLM chunking to save time
         print(
-            f"First document content: {documents[0].page_content[:100]}"
+            f"First document content: {documents[0].page_content[:20]}"
         )  # print first 500 characters
         print(f"First document metadata: {documents[0].metadata}")
 
@@ -195,18 +192,18 @@ def ingest_knowledge_base(
         workers=workers,
     )
 
-    create_vector_db_via_langchain(chunks, embedding_method=embedding_method)
+    create_vector_db(chunks, embedding_method=embedding_method)
 
 
 if __name__ == "__main__":
     ingest_knowledge_base(
-        chunking_method="recursive",  # "recursive", "llm", or "embedding"
-        chunk_size=500,
-        chunk_overlap=150,
-        chunking_emb="text-embedding-3-small",
-        chunking_llm="gpt-4.1-nano",
-        workers=4,
-        embedding_method="huggingface",  # "huggingface" or "openai"
+        chunking_method=CONFIG["chunking"]["chunking_method"],  # "recursive", "llm", or "embedding"
+        chunk_size=CONFIG["chunking"]["chunk_size"],
+        chunk_overlap=CONFIG["chunking"]["chunk_overlap"],
+        chunking_emb=CONFIG["chunking"]["chunking_emb"],
+        chunking_llm=CONFIG["chunking"]["chunking_llm"],
+        workers=CONFIG["chunking"]["workers"],
+        embedding_method=CONFIG["vectorDB"]["embedding_method"],  # "huggingface" or "openai"
     )
 
     # check database contents
@@ -219,5 +216,6 @@ if __name__ == "__main__":
     sample_embedding = vector_db._collection.get(
         limit=1, include=["embeddings", "metadatas"]
     )
+    print(len(sample_embedding["embeddings"][0]))
     if sample_embedding:
         print(f"Sample embedding: {sample_embedding}")

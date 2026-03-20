@@ -18,3 +18,4 @@ tenacity # For retrying API calls
 litellm  # For using LLMs in a lightweight manner without needing to use models from Hugging Face or OpenAI, useful for local testing and development
 torch  # For using PyTorch-based models, especially if using Hugging Face embeddings that can leverage GPU acceleration
 black
+hydra

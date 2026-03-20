@@ -23,7 +23,7 @@ vectorDB:
   name: vector-db
   collection_name: docs
   # openai embedding model is better
-  embedding_method: openai  # "huggingface" or "openai"
+  embedding_method: &cp openai  # "huggingface" or "openai"
   hf_model: all-MiniLM-L6-v2
   openai_model: text-embedding-3-small
 
@@ -36,6 +36,6 @@ answer_generation:
 
 
 evaluation:
-  database_embedding: ${database.embedding_method}
+  database_embedding: *cp  # no need
   model: gemini-2.5-flash
 

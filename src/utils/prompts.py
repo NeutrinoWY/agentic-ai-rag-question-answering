@@ -21,7 +21,7 @@ You should divide up the document as you see fit, being sure that the entire doc
 This document should probably be split into at least {how_many} chunks, but you can have more or less as appropriate, ensuring that there are individual chunks to answer specific questions.
 There should be overlap between the chunks as appropriate; typically about 25% overlap or about 50 words, so you have the same text in multiple chunks for best retrieval results.
 
-For each chunk, you should provide a headline, a summary, and the original text of the chunk.
+For each chunk, you should provide a headline, and the original text of the chunk.
 Together your chunks should represent the entire document with overlap.
 
 Here is the document:

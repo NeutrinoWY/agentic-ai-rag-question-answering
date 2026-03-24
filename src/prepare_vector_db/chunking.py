@@ -36,6 +36,7 @@ def chunk_document_llm(
     messages = create_messages(document)
     # use pydantic model Chunks to validate the response, chunks is a list of dicts with the keys "headline", "text"
     # chunk the document using the LLM, with a response format of Chunks
+    # todo: initialize client inside create_chunks_llm if using parallel processing
     response = OpenAI().chat.completions.parse(
         model=chunking_llm,
         messages=[messages],
@@ -91,6 +92,7 @@ def chunk_document_emb(
     returns: List of document chunks with metadata.
     """
     # Initialize the text splitter with the specified embedding model
+    # Todo: if not use parallel processing, initialize model in main chunking function to avoid repeated initialization
     embeddings = OpenAIEmbeddings(model=chunking_emb)
     text_splitter = SemanticChunker(
         embeddings,

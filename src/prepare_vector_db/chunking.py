@@ -59,7 +59,8 @@ def create_chunks_llm(
     Each chunk is a dict containing a headline, the original text of the chunk, and metadata from the original document.
     Args:
         documents: List of documents to be split into chunks.
-        prompt: Optional prompt for the LLM.
+        chunking_llm: model name
+        workers: number of workers
     returns: List of document chunks with metadata.
     """
     chunks = []
